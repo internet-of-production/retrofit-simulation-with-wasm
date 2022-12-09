@@ -21,7 +21,17 @@ const imports = { /* imports go here */ };
 const wasmModule = loader.instantiateSync(fs.readFileSync(__dirname + "/build/release.wasm"), imports);
 module.exports = wasmModule.exports; //module.exports refers exports property of wasmModule. It allows us to use a wasmModule like a JSModule.
 
-const {getIDAirConditionerTemp, getMQTTOptions, checkBakingTime} = module.exports
+const {
+        getIDAirConditionerTemp,
+        getIDOvenPowerStatus,
+        getIDBakingTime,
+        getIDBakingElapsedTime,
+        getIDOvenDoorStatus,
+        getOpcEndpoint,
+        getMQTTOptions,
+        checkBakingTime
+} = module.exports
+
 const {__newString, __getString} = module.exports
 
 
@@ -38,7 +48,7 @@ const options = {
 };
 const client = OPCUAClient.create(options);
 // const endpointUrl = "opc.tcp://opcuademo.sterfive.com:26543";
-const endpointUrl = "opc.tcp://opcuaserver.com:48010";
+const endpointUrl = __getString(getOpcEndpoint());
 //const endpointUrl = "opc.tcp://192.168.0.1:4840";//address of opc server at mock factory
 
 let isItemInOven = false;
