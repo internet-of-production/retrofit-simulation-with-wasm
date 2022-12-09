@@ -21,7 +21,7 @@ const imports = { /* imports go here */ };
 const wasmModule = loader.instantiateSync(fs.readFileSync(__dirname + "/build/release.wasm"), imports);
 module.exports = wasmModule.exports; //module.exports refers exports property of wasmModule. It allows us to use a wasmModule like a JSModule.
 
-const {getIDAirConditionerTemp, getMQTTOptions} = module.exports
+const {getIDAirConditionerTemp, getMQTTOptions, checkBakingTime} = module.exports
 const {__newString, __getString} = module.exports
 
 
@@ -41,7 +41,6 @@ const client = OPCUAClient.create(options);
 const endpointUrl = "opc.tcp://opcuaserver.com:48010";
 //const endpointUrl = "opc.tcp://192.168.0.1:4840";//address of opc server at mock factory
 
-const ACCEPTABLE_TIME_ERROR = 15000; //15 seconds. (should be fitted)
 let isItemInOven = false;
 let bakingStart;
 let bakingEnd;
@@ -205,7 +204,8 @@ async function main() {
                     //Check also if the oven is running or not.　How precise should be the time??
                     timeLength = bakingEnd - bakingStart
 
-                    bakingTimeError = (Math.abs(timeLength - definedBakeTime) > ACCEPTABLE_TIME_ERROR);
+                    //TODO: Check if WASM function runs as intended
+                    bakingTimeError = checkBakingTime(definedBakeTime, timeLength);
                     //TODO:Create messages (JSON) and send them via MQTT (topic: oven status)
                     mqttMsg = {
                         "baking_time_error": bakingTimeError, //boolean
