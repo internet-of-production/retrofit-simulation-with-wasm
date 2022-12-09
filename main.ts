@@ -14,13 +14,14 @@ import {
 
 const loader = require("@assemblyscript/loader");
 const fs = require("fs");
+const mqtt = require('mqtt')
 
 //One can add JS functions that are called in Wasm in imports
 const imports = { /* imports go here */ };
 const wasmModule = loader.instantiateSync(fs.readFileSync(__dirname + "/build/release.wasm"), imports);
 module.exports = wasmModule.exports; //module.exports refers exports property of wasmModule. It allows us to use a wasmModule like a JSModule.
 
-const {getIDAirConditionerTemp} = module.exports
+const {getIDAirConditionerTemp, getMQTTOptions} = module.exports
 const {__newString, __getString} = module.exports
 
 
@@ -55,14 +56,14 @@ async function timeout(ms: number) {
 
 async function main() {
 
-    const mqtt = require('mqtt')
+    const optionMqttJSON = JSON.parse(__getString(getMQTTOptions()))
     const options = {
         //clientId:optionJSON.clientId,
-        port:1883,
-        host:'192.168.0.10',//MQTT broker at the mock factory
-        //host:'localhost',
-        rejectUnauthorized: false,
-        reconnectPeriod: 1000
+        port:optionMqttJSON.port,
+        //host:'192.168.0.10',//MQTT broker at the mock factory
+        host:optionMqttJSON.host,
+        rejectUnauthorized:optionMqttJSON.rejectUnauthorized,
+        reconnectPeriod: optionMqttJSON.reconnectPeriod
     }
     const mqttClient  = mqtt.connect(options);
 
