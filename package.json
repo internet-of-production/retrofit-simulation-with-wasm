@@ -2,14 +2,14 @@
   "name": "opc_node_wasm",
   "version": "1.0.0",
   "description": "",
-  "type":"commonjs",
+  "type": "commonjs",
   "main": "main.ts",
   "scripts": {
     "test": "node tests",
     "asbuild:debug": "asc assembly/index.ts --target debug",
     "asbuild:release": "asc assembly/index.ts --target release",
     "asbuild": "npm run asbuild:debug && npm run asbuild:release",
-    "start": "ts-node main.ts"
+    "start": "ts-node -T main.ts"
   },
   "author": "",
   "license": "ISC",
@@ -24,6 +24,7 @@
     "assemblyscript": "^0.25.0",
     "mqtt": "^4.3.7",
     "node-opcua": "^2.85.0",
-    "node-opcua-client": "^2.85.0"
+    "node-opcua-client": "^2.85.0",
+    "ts-node": "^10.9.1"
   }
 }
