@@ -9,7 +9,7 @@ import {
     MonitoringParametersOptions,
     ReadValueIdOptions,
     ClientMonitoredItem,
-    DataValue
+    DataValue, ClientSession
 } from "node-opcua";
 
 const loader = require("@assemblyscript/loader");
@@ -32,6 +32,7 @@ const {
         checkBakingTime
 } = module.exports
 
+//__getString copies a string's value from the module's memory to a JavaScript string.
 const {__newString, __getString} = module.exports
 
 
@@ -47,13 +48,10 @@ const options = {
     endpointMustExist: false,
 };
 const client = OPCUAClient.create(options);
-// const endpointUrl = "opc.tcp://opcuademo.sterfive.com:26543";
-const endpointUrl = __getString(getOpcEndpoint());
-//const endpointUrl = "opc.tcp://192.168.0.1:4840";//address of opc server at mock factory
-
+//const endpointUrl = __getString(getOpcEndpoint());
+const endpointUrl = "opc.tcp://opcua.demo-this.com:51210/UA/SampleServer"// sample public opcua server
 let isItemInOven = false;
-let bakingStart;
-let bakingEnd;
+let bakingTime;
 let timeLength;
 let definedBakeTime;
 let bakingTimeError = false;
@@ -61,6 +59,18 @@ let mqttMsg;
 
 async function timeout(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function readElapsedTime(session: ClientSession){
+    try{
+        return await session.read({
+            nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
+            attributeId: AttributeIds.Value
+        });
+    }
+    catch (e){
+        console.log("Error at readElapsedTime");
+    }
 }
 
 async function main() {
@@ -80,6 +90,7 @@ async function main() {
         mqttClient.subscribe('presence', function (err) {
             if (!err) {
                 mqttClient.publish('connection', 'MQTT: Connected')
+                console.log("MQTT connected")
             }
         })
     })
@@ -114,19 +125,20 @@ async function main() {
         }
 
         // step 4 : read a variable with readVariableValue
-        const dataValue2 = await session.read({
-            //nodeId: 'ns=3;s="QX_MPO_LightOven_Q9"',//Ist Ofen an? semi colon aufpassen
-            nodeId: 'ns=3;s=AirConditioner_1.Temperature',
+        let ovenPowerStatus = await session.read({
+            nodeId: 'ns=3;s="QX_MPO_LightOven_Q9"',//Ist Ofen an? semi colon aufpassen
+            //nodeId: 'ns=3;s=AirConditioner_1.Temperature',
             attributeId: AttributeIds.Value
         });
-        console.log(" dataValue2 = ", dataValue2.toString());
+        console.log(" ovenPowerStatus = ", ovenPowerStatus.toString());
 
         //Get the expected baking time length
-        /*definedBakeTime = await session.read({
-            nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Bake_Time"',
+        definedBakeTime = await session.read({
+            nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Bake_TIme"',
+            //nodeId:'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
             attributeId: AttributeIds.Value
         });
-        console.log(" expectedBakeTime = ", definedBakeTime.toString());*/
+        console.log(" expectedBakeTime = ", definedBakeTime.toString());
 
         // step 5: install a subscription and install a monitored item for 10 seconds
         const subscription = ClientSubscription.create(session, {
@@ -154,7 +166,7 @@ async function main() {
 
 // set subscribed (monitored) item
 
-        let airCondIDPtr = getIDAirConditionerTemp()
+        /*let airCondIDPtr = getIDAirConditionerTemp()
         console.log('wasm called')
         let airCondID = __getString(airCondIDPtr)
         console.log(airCondID)
@@ -162,15 +174,18 @@ async function main() {
             //nodeId: 'ns=3;s=AirConditioner_1.Temperature',
             nodeId: __getString(airCondIDPtr),
             attributeId: AttributeIds.Value
-        };
+        };*/
 
-        /*
+
         //monitor the oven's door. false: the door does not move now(??)
+        let ovenPowerStatIDPtr = getIDOvenPowerStatus()
+        let ovenPowerStatID = __getString(ovenPowerStatIDPtr)
+        console.log(ovenPowerStatID)
         const itemToMonitor: ReadValueIdOptions = {
-            nodeId: 'ns=3;s="QX_MPO_ValveOvenDoor_Q13"',
+            nodeId: __getString(ovenPowerStatIDPtr),
             attributeId: AttributeIds.Value
         };
-        */
+
 
         const parameters: MonitoringParametersOptions = {
             samplingInterval: 100,
@@ -193,29 +208,18 @@ async function main() {
         * The receiver sends a remove command if the corresponding product is defect
         * */
         monitoredItem.on("changed", (dataValue: DataValue) => {
-            console.log(" value has changed : ", dataValue.value.value.toString());
+
+            console.log(" value has changed (oven turns on/off) : ", dataValue.value.value.toString());
             //Listen to the oven door status. When an item will enter into the oven, it stores the current time.
             //monitor the oven's door. false: the door does not move now(??)
             if(dataValue.value.value){
-                if(!isItemInOven){
-                    //set current time. Is time given in ms?
-                    bakingStart = session.read({
-                        nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
-                        attributeId: AttributeIds.Value
-                    });
-                    isItemInOven = true;
-                }
-                else{
-                    //When an item is already in the oven, it calculates the time difference and compare with the desired time.
-                    bakingEnd = session.read({
-                        nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
-                        attributeId: AttributeIds.Value
-                    });
-                    //Check also if the oven is running or not.　How precise should be the time??
-                    timeLength = bakingEnd - bakingStart
-
+                isItemInOven = true;
+            }
+            else{
+                if(isItemInOven){
+                    bakingTime = readElapsedTime(session)
                     //TODO: Check if WASM function runs as intended
-                    bakingTimeError = checkBakingTime(definedBakeTime, timeLength);
+                    bakingTimeError = checkBakingTime(definedBakeTime.value.value, bakingTime.value.value);
                     //TODO:Create messages (JSON) and send them via MQTT (topic: oven status)
                     mqttMsg = {
                         "baking_time_error": bakingTimeError, //boolean
@@ -228,6 +232,7 @@ async function main() {
                     isItemInOven = false;
                 }
             }
+
         });
 
 

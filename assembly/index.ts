@@ -1,10 +1,15 @@
 
 const acceptableErrorRange = 0.1 //10 percent
-const opcEndpointUrl = "opc.tcp://opcuaserver.com:48010";
+//Configuration for mock factory
+//const opcEndpointUrl = "opc.tcp://192.168.0.1:4840"
+//const mqttOptionJSON:string = "{\"clientId\":\"wasmNode\",\"port\":1883,\"host\":\"192.168.0.10\",\"rejectUnauthorized\":false,\"protocol\": \"mqtt\",\"reconnectPeriod\":1000}"
 
+//Configuration for testing at home
+const opcEndpointUrl = "opc.tcp://opcuaserver.com:48010";
 const mqttOptionJSON:string = "{\"clientId\":\"wasmNode\",\"port\":1883,\"host\":\"localhost\",\"rejectUnauthorized\":false,\"protocol\": \"mqtt\",\"reconnectPeriod\":1000}"
+
 const opcuaIDOvenPowerStatus:string = 'ns=3;s="QX_MPO_LightOven_Q9"'
-const opcuaIDBakingTime:string = 'ns=3;s=\"PRG_MPO_Ablauf_DB\".\"Bake_Time\"'
+const opcuaIDBakingTime:string = 'ns=3;s=\"PRG_MPO_Ablauf_DB\".\"Bake_TIme\"'
 const opcuaIDBakingElapsedTime:string = 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET'
 const opcuaIDOvenDoorStatus:string = 'ns=3;s="QX_MPO_ValveOvenDoor_Q13"'
 
