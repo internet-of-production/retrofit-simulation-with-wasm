@@ -29,7 +29,7 @@ const {
         getIDOvenDoorStatus,
         getOpcEndpoint,
         getMQTTOptions,
-        checkBakingTime
+        isBakingTimeAcceptable
 } = module.exports
 
 //__getString copies a string's value from the module's memory to a JavaScript string.
@@ -48,8 +48,8 @@ const options = {
     endpointMustExist: false,
 };
 const client = OPCUAClient.create(options);
-//const endpointUrl = __getString(getOpcEndpoint());
-const endpointUrl = "opc.tcp://opcua.demo-this.com:51210/UA/SampleServer"// sample public opcua server
+const endpointUrl = __getString(getOpcEndpoint());
+//const endpointUrl = "opc.tcp://0.0.0.0:4840/freeopcua/server/" //local sample server url
 let isItemInOven = false;
 let bakingTime;
 let timeLength;
@@ -59,18 +59,6 @@ let mqttMsg;
 
 async function timeout(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function readElapsedTime(session: ClientSession){
-    try{
-        return await session.read({
-            nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
-            attributeId: AttributeIds.Value
-        });
-    }
-    catch (e){
-        console.log("Error at readElapsedTime");
-    }
 }
 
 async function main() {
@@ -126,8 +114,7 @@ async function main() {
 
         // step 4 : read a variable with readVariableValue
         let ovenPowerStatus = await session.read({
-            nodeId: 'ns=3;s="QX_MPO_LightOven_Q9"',//Ist Ofen an? semi colon aufpassen
-            //nodeId: 'ns=3;s=AirConditioner_1.Temperature',
+            nodeId: 'ns=3;s="QX_MPO_LightOven_Q9"',
             attributeId: AttributeIds.Value
         });
         console.log(" ovenPowerStatus = ", ovenPowerStatus.toString());
@@ -135,11 +122,11 @@ async function main() {
         //Get the expected baking time length
         definedBakeTime = await session.read({
             nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Bake_TIme"',
-            //nodeId:'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
             attributeId: AttributeIds.Value
         });
-        console.log(" expectedBakeTime = ", definedBakeTime.toString());
-
+        console.log('expectedBakeTime:')
+        console.log("---->", definedBakeTime.toString())
+        console.log(definedBakeTime.value.value.toString())
         // step 5: install a subscription and install a monitored item for 10 seconds
         const subscription = ClientSubscription.create(session, {
             requestedPublishingInterval: 1000,
@@ -165,16 +152,6 @@ async function main() {
             });
 
 // set subscribed (monitored) item
-
-        /*let airCondIDPtr = getIDAirConditionerTemp()
-        console.log('wasm called')
-        let airCondID = __getString(airCondIDPtr)
-        console.log(airCondID)
-        const itemToMonitor: ReadValueIdOptions = {
-            //nodeId: 'ns=3;s=AirConditioner_1.Temperature',
-            nodeId: __getString(airCondIDPtr),
-            attributeId: AttributeIds.Value
-        };*/
 
 
         //monitor the oven's door. false: the door does not move now(??)
@@ -207,7 +184,7 @@ async function main() {
         * This message should be received by a RasPi/ESP at the conveyor or vacuum lifter.
         * The receiver sends a remove command if the corresponding product is defect
         * */
-        monitoredItem.on("changed", (dataValue: DataValue) => {
+        monitoredItem.on("changed", async (dataValue: DataValue) => {
 
             console.log(" value has changed (oven turns on/off) : ", dataValue.value.value.toString());
             //Listen to the oven door status. When an item will enter into the oven, it stores the current time.
@@ -217,10 +194,14 @@ async function main() {
             }
             else{
                 if(isItemInOven){
-                    bakingTime = readElapsedTime(session)
-                    //TODO: Check if WASM function runs as intended
-                    bakingTimeError = checkBakingTime(definedBakeTime.value.value, bakingTime.value.value);
-                    //TODO:Create messages (JSON) and send them via MQTT (topic: oven status)
+                    bakingTime = await session.read({
+                        nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
+                        attributeId: AttributeIds.Value
+                    });
+                    //Check if WASM function runs as intended
+                    bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, bakingTime.value.value);
+                    timeLength = bakingTime.value.value
+                    //Create messages (JSON) and send them via MQTT (topic: oven status)
                     mqttMsg = {
                         "baking_time_error": bakingTimeError, //boolean
                         "time": timeLength // number.
