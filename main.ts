@@ -52,9 +52,10 @@ const endpointUrl = __getString(getOpcEndpoint());
 //const endpointUrl = "opc.tcp://0.0.0.0:4840/freeopcua/server/" //local sample server url
 let isItemInOven = false;
 let bakingTime;
-let timeLength;
+let totalBakingTime // In the case that oven turns off and on again for a single item.
 let definedBakeTime;
 let bakingTimeError = false;
+let bakingInterrupted = false;
 let mqttMsg;
 
 async function timeout(ms: number) {
@@ -154,15 +155,14 @@ async function main() {
 // set subscribed (monitored) item
 
 
-        //monitor the oven's door. false: the door does not move now(??)
+        //monitor oven power status
         let ovenPowerStatIDPtr = getIDOvenPowerStatus()
         let ovenPowerStatID = __getString(ovenPowerStatIDPtr)
         console.log(ovenPowerStatID)
-        const itemToMonitor: ReadValueIdOptions = {
+        const ovenPowerMonitor: ReadValueIdOptions = {
             nodeId: __getString(ovenPowerStatIDPtr),
             attributeId: AttributeIds.Value
         };
-
 
         const parameters: MonitoringParametersOptions = {
             samplingInterval: 100,
@@ -170,47 +170,81 @@ async function main() {
             queueSize: 10
         };
 
-        const monitoredItem = ClientMonitoredItem.create(
+        const ovenPower = ClientMonitoredItem.create(
             subscription,
-            itemToMonitor,
+            ovenPowerMonitor,
             parameters,
             TimestampsToReturn.Both
         );
 
-        //TODO:check here the time and temperature of the oven
+        //monitor the oven's door. false: the door does not move now
+        let ovenDoorIDPtr = getIDOvenDoorStatus()
+        const doorMonitor: ReadValueIdOptions = {
+            nodeId: __getString(ovenDoorIDPtr),
+            attributeId: AttributeIds.Value
+        };
+
+        const ovenDoor = ClientMonitoredItem.create(
+            subscription,
+            doorMonitor,
+            parameters,
+            TimestampsToReturn.Both
+        )
+
+        //TODO:check here bake time
         /*
         * Depending on the temperature, decide if the baking time is appropriate.
         * Then send the information via MQTT.
         * This message should be received by a RasPi/ESP at the conveyor or vacuum lifter.
         * The receiver sends a remove command if the corresponding product is defect
         * */
-        monitoredItem.on("changed", async (dataValue: DataValue) => {
+
+        // Assume that an item will be inserted or removed if the door opens.
+        ovenDoor.on("changed", (dataValue, DataValue)=>{
+            console.log('door is moving', dataValue.value.value);
+           if(dataValue.value.value){
+               if(isItemInOven){
+                   //TODO:send mqtt message
+                   //Check if WASM function runs as intended
+                   bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, totalBakingTime);
+                   //Create messages (JSON) and send them via MQTT (topic: oven status)
+                   mqttMsg = {
+                       "baking_time_error": bakingTimeError, //boolean
+                       "time": totalBakingTime, // number.
+                       "interrupted": bakingInterrupted
+                   }
+
+                   mqttClient.publish('baking_status', JSON.stringify(mqttMsg))//JSON Format
+
+                   //oven is free now
+                   isItemInOven = false;
+               }
+               else{
+                   totalBakingTime = 0;
+                   bakingInterrupted = false;
+                   isItemInOven = true;
+               }
+
+           }
+        });
+
+        ovenPower.on("changed", async (dataValue: DataValue) => {
 
             console.log(" value has changed (oven turns on/off) : ", dataValue.value.value.toString());
             //Listen to the oven door status. When an item will enter into the oven, it stores the current time.
             //monitor the oven's door. false: the door does not move now(??)
-            if(dataValue.value.value){
-                isItemInOven = true;
-            }
-            else{
+            if(!dataValue.value.value){
                 if(isItemInOven){
                     bakingTime = await session.read({
                         nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
                         attributeId: AttributeIds.Value
                     });
-                    //Check if WASM function runs as intended
-                    bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, bakingTime.value.value);
-                    timeLength = bakingTime.value.value
-                    //Create messages (JSON) and send them via MQTT (topic: oven status)
-                    mqttMsg = {
-                        "baking_time_error": bakingTimeError, //boolean
-                        "time": timeLength // number.
+
+                    //totalBakingTime != 0 means that the oven has turned off and on again between baking a single item.
+                    if(totalBakingTime!=0){
+                        bakingInterrupted = true;
                     }
-
-                    mqttClient.publish('baking_status', JSON.stringify(mqttMsg))//JSON Format
-
-                    //oven is free now
-                    isItemInOven = false;
+                    totalBakingTime += bakingTime.value.value;
                 }
             }
 
