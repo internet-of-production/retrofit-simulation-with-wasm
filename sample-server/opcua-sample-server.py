@@ -90,20 +90,31 @@ class ElapsedTimeUpdater(Thread):
             self.var.set_value(random.randint(240000,360000), ua.VariantType.Int32)
             time.sleep(1)
 
-class OvenPowerUpdater(Thread):
-    def __init__(self, var):
+class OvenDoorPowerUpdater(Thread):
+    def __init__(self, door, power):
         Thread.__init__(self)
         self._stopev = False
-        self.var = var
+        self.door = door
+        self.power = power
 
     def stop(self):
         self._stopev = True
 
+    # assume that baking will not be interrupted
     def run(self):
         while not self._stopev:
-            current_power_stat = self.var.get_value()
-            self.var.set_value(not current_power_stat)
-            time.sleep(10)
+            self.door.set_value(True)  # door opens
+            time.sleep(2)
+            self.door.set_value(False) # door closes
+            time.sleep(2)
+            self.power.set_value(True) # oven turns on
+            time.sleep(10) # 10 seconds. bake time in a real case
+            self.power.set_value(False) # oven turns off
+            time.sleep(2)
+            self.door.set_value(True)  # door opens
+            time.sleep(2)
+            self.door.set_value(False) # door closes
+            time.sleep(5)
 
 
 if __name__ == "__main__":
@@ -171,6 +182,7 @@ if __name__ == "__main__":
     ovenpower = oven.add_variable(ua.NodeId.from_string('ns=3;s="QX_MPO_LightOven_Q9"'), "Oven Power Status", False, ua.VariantType.Boolean) #add_variable(self, nodeId, name, value, datatype)
     bake_time = oven.add_variable(ua.NodeId.from_string('ns=3;s="PRG_MPO_Ablauf_DB"."Bake_TIme"'), "Expected Bake Time", 300000, ua.VariantType.Int32) #300000ms (5 min)
     elapsed_time = oven.add_variable(ua.NodeId.from_string('ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET'), "Elapsed Time", 300000, ua.VariantType.Int32) # start counting if the oven turns ON.
+    ovendoor = oven.add_variable(ua.NodeId.from_string('ns=3;s="QX_MPO_ValveOvenDoor_Q13"'), "Oven Door", False, ua.VariantType.Boolean) #oven's door
 
     # import some nodes from xml
     # server.import_xml("custom_nodes.xml")
@@ -184,8 +196,8 @@ if __name__ == "__main__":
     # starting!
     server.start()
     print("Available loggers are: ", logging.Logger.manager.loggerDict.keys())
-    oven_power_update = OvenPowerUpdater(ovenpower)
-    oven_power_update.start()
+    oven_door_power_update = OvenDoorPowerUpdater(ovendoor, ovenpower)
+    oven_door_power_update.start()
     elapsed_t_update = ElapsedTimeUpdater(elapsed_time) 
     elapsed_t_update.start()
     try:
@@ -204,6 +216,6 @@ if __name__ == "__main__":
 
         embed()
     finally:
-        oven_power_update.stop()
+        oven_door_power_update.stop()
         elapsed_t_update.stop()
         server.stop()
