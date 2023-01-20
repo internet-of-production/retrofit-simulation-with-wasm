@@ -184,6 +184,11 @@ async function main() {
         * This message should be received by a RasPi/ESP at the conveyor or vacuum lifter.
         * The receiver sends a remove command if the corresponding product is defect
         * */
+
+        let startDate;
+// Do your operations
+        let endDate;
+        let differceTime;
         monitoredItem.on("changed", async (dataValue: DataValue) => {
 
             console.log(" value has changed (oven turns on/off) : ", dataValue.value.value.toString());
@@ -191,16 +196,20 @@ async function main() {
             //monitor the oven's door. false: the door does not move now(??)
             if(dataValue.value.value){
                 isItemInOven = true;
+                startDate = new Date()
             }
             else{
                 if(isItemInOven){
                     bakingTime = await session.read({
-                        nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".ET',
+                        nodeId: 'ns=3;s="PRG_MPO_Ablauf_DB"."Oven_TON".PT',
                         attributeId: AttributeIds.Value
                     });
                     //Check if WASM function runs as intended
-                    bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, bakingTime.value.value);
-                    timeLength = bakingTime.value.value
+                    endDate = new Date()
+                    differceTime = (endDate.getTime() - startDate.getTime()) / 1000;
+                    bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, differceTime);
+                    //timeLength = bakingTime.value.value
+                    timeLength = differceTime;
                     //Create messages (JSON) and send them via MQTT (topic: oven status)
                     mqttMsg = {
                         "baking_time_error": bakingTimeError, //boolean

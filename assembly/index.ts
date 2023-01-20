@@ -1,12 +1,12 @@
 
 const acceptableErrorRange = 0.1 //10 percent
 //Configuration for mock factory
-//const opcEndpointUrl = "opc.tcp://192.168.0.1:4840"
-//const mqttOptionJSON:string = "{\"clientId\":\"wasmNode\",\"port\":1883,\"host\":\"192.168.0.10\",\"rejectUnauthorized\":false,\"protocol\": \"mqtt\",\"reconnectPeriod\":1000}"
+const opcEndpointUrl = "opc.tcp://192.168.0.1:4840"
+const mqttOptionJSON:string = "{\"clientId\":\"wasmNode\",\"port\":1883,\"host\":\"192.168.0.10\",\"rejectUnauthorized\":false,\"protocol\": \"mqtt\",\"reconnectPeriod\":1000}"
 
 //Configuration for testing at home
-const opcEndpointUrl = "opc.tcp://0.0.0.0:4840/freeopcua/server/";
-const mqttOptionJSON:string = "{\"clientId\":\"wasmNode\",\"port\":1883,\"host\":\"localhost\",\"rejectUnauthorized\":false,\"protocol\": \"mqtt\",\"reconnectPeriod\":1000}"
+//const opcEndpointUrl = "opc.tcp://0.0.0.0:4840/freeopcua/server/";
+//const mqttOptionJSON:string = "{\"clientId\":\"wasmNode\",\"port\":1883,\"host\":\"localhost\",\"rejectUnauthorized\":false,\"protocol\": \"mqtt\",\"reconnectPeriod\":1000}"
 
 const opcuaIDOvenPowerStatus:string = 'ns=3;s="QX_MPO_LightOven_Q9"'
 const opcuaIDBakingTime:string = 'ns=3;s=\"PRG_MPO_Ablauf_DB\".\"Bake_TIme\"'
