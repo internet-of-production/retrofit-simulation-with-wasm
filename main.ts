@@ -52,10 +52,12 @@ const endpointUrl = __getString(getOpcEndpoint());
 //const endpointUrl = "opc.tcp://0.0.0.0:4840/freeopcua/server/" //local sample server url
 let isItemInOven = false;
 let bakingTime;
-let timeLength;
 let definedBakeTime;
 let bakingTimeError = false;
 let mqttMsg;
+let startTime;
+let endTime;
+let timeDiff;
 
 async function timeout(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -185,10 +187,6 @@ async function main() {
         * The receiver sends a remove command if the corresponding product is defect
         * */
 
-        let startDate;
-// Do your operations
-        let endDate;
-        let differceTime;
         monitoredItem.on("changed", async (dataValue: DataValue) => {
 
             console.log(" value has changed (oven turns on/off) : ", dataValue.value.value.toString());
@@ -196,7 +194,7 @@ async function main() {
             //monitor the oven's door. false: the door does not move now(??)
             if(dataValue.value.value){
                 isItemInOven = true;
-                startDate = new Date()
+                startTime = performance.now() // time in ms
             }
             else{
                 if(isItemInOven){
@@ -205,15 +203,13 @@ async function main() {
                         attributeId: AttributeIds.Value
                     });
                     //Check if WASM function runs as intended
-                    endDate = new Date()
-                    differceTime = (endDate.getTime() - startDate.getTime()) / 1000;
-                    bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, differceTime);
-                    //timeLength = bakingTime.value.value
-                    timeLength = differceTime;
+                    endTime = performance.now()
+                    timeDiff = Math.round(endTime - startTime);
+                    bakingTimeError = !isBakingTimeAcceptable(definedBakeTime.value.value, timeDiff);
                     //Create messages (JSON) and send them via MQTT (topic: oven status)
                     mqttMsg = {
                         "baking_time_error": bakingTimeError, //boolean
-                        "time": timeLength // number.
+                        "time": timeDiff // // time in ms
                     }
 
                     mqttClient.publish('baking_status', JSON.stringify(mqttMsg))//JSON Format
